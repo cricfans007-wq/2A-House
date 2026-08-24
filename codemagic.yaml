@@ -8,6 +8,8 @@ workflows:
     environment:
       flutter: stable
       xcode: latest
+      groups:
+        - ios_signing
       vars:
         BUNDLE_ID: com.house.houseChores
     scripts:
