@@ -32,16 +32,22 @@ workflows:
       - name: Build IPA
         script: |
           set -e
-          digits() {
-            echo "$1" | tr -cd '0-9'
+          parse_build() {
+            echo "$1" | grep -E '^[0-9]+$' | tail -n 1
           }
-          TF=$(digits "$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || true)")
-          AS=$(digits "$(app-store-connect get-latest-app-store-build-number "$BUNDLE_ID" 2>/dev/null || true)")
+          TF_RAW=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" --platform IOS || true)
+          AS_RAW=$(app-store-connect get-latest-app-store-build-number "$BUNDLE_ID" --platform IOS || true)
+          echo "TestFlight latest: $TF_RAW"
+          echo "App Store latest: $AS_RAW"
+          TF=$(parse_build "$TF_RAW")
+          AS=$(parse_build "$AS_RAW")
           [ -z "$TF" ] && TF=0
           [ -z "$AS" ] && AS=0
-          LATEST=$TF
+          # Apple already accepted CFBundleVersion 1 and 2.
+          MIN=2
+          LATEST=$MIN
+          [ "$TF" -gt "$LATEST" ] && LATEST=$TF
           [ "$AS" -gt "$LATEST" ] && LATEST=$AS
-          [ "$LATEST" -lt 1 ] && LATEST=1
           NEXT_BUILD=$((LATEST + 1))
           echo "Building 1.0.0 ($NEXT_BUILD) (Apple latest=$LATEST)"
           flutter build ipa --release \
