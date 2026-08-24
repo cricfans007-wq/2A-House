@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /houses/{houseId}/occurrences/{id} {
+      allow read: if signedIn() && houseId == '2a-house';
+      allow create, update: if signedIn()
+        && houseId == '2a-house'
+        && validOccurrence();
+      allow delete: if false;
+    }
+  }
+
+  function signedIn() {
+    return request.auth != null;
+  }
+
+  function validOccurrence() {
+    let d = request.resource.data;
+    return d.id is string
+      && d.id.size() > 0
+      && d.id.size() < 100
+      && d.jobType is string
+      && d.jobType.size() < 32
+      && d.assignedRoom is int
+      && d.assignedRoom in [1, 2, 3]
+      && d.completed is bool
+      && d.notifiedOnTime is bool;
+  }
+}

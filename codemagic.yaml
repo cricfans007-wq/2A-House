@@ -1,0 +1,43 @@
+workflows:
+  ios-testflight:
+    name: iOS TestFlight
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    # Name this key exactly "Codemagic" in Codemagic → Team integrations → Developer Portal.
+    integrations:
+      app_store_connect: Codemagic
+    environment:
+      flutter: stable
+      xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.house.houseChores
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Set up code signing
+        script: |
+          xcode-project use-profiles \
+            --custom-export-options='{"testFlightInternalTestingOnly": true}'
+      - name: Build IPA
+        script: |
+          set -e
+          BUNDLE_ID="com.house.houseChores"
+          LATEST=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || echo 0)
+          if [ -z "$LATEST" ] || [ "$LATEST" = "None" ]; then
+            LATEST=0
+          fi
+          BUILD_NUMBER=$((LATEST + 1))
+          echo "Building 1.0.0 ($BUILD_NUMBER)"
+          flutter build ipa --release \
+            --build-name=1.0.0 \
+            --build-number="$BUILD_NUMBER" \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: false
+        submit_to_app_store: false

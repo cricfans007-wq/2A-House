@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "848257040568",
+    "project_id": "twoa-house-chores",
+    "storage_bucket": "twoa-house-chores.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:848257040568:android:4f7e260776985e5697344d",
+        "android_client_info": {
+          "package_name": "com.house.house_chores"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBd4xxXs3VcHNJ92nx_OHDXqKoqEmaYmCU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
