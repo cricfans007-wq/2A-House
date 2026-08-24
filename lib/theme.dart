@@ -18,6 +18,28 @@ Color roomFill(int roomId, Brightness brightness) {
   return c.withValues(alpha: brightness == Brightness.dark ? 0.24 : 0.14);
 }
 
+const glassTabContentPadding = EdgeInsets.fromLTRB(16, 8, 16, 32);
+
+class HouseGlassBackground extends StatelessWidget {
+  const HouseGlassBackground({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: dark
+              ? const [Color(0xFF0E1418), Color(0xFF12201C), Color(0xFF1A1612)]
+              : const [cream, Color(0xFFE7F3F0), Color(0xFFF6EDE3)],
+        ),
+      ),
+    );
+  }
+}
+
 ThemeData buildTheme(Brightness brightness) {
   final isDark = brightness == Brightness.dark;
   const seed = Color(0xFF0F766E);

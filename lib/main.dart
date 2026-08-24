@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'data/house_store.dart';
 import 'data/house_sync.dart';
@@ -15,10 +16,21 @@ Timer? _resyncDebounce;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  final glassReady = LiquidGlassWidgets.initialize(
+    enablePerformanceMonitor: false,
+  );
   await Hive.initFlutter();
   await houseStore.init();
+  await glassReady;
   houseStore.cloudReconnect = houseSync.start;
-  runApp(const HouseApp());
+  runApp(
+    LiquidGlassWidgets.wrap(
+      child: const HouseApp(),
+      brightnessResolver: Theme.maybeBrightnessOf,
+      adaptiveQuality: true,
+      theme: GlassThemeData.simple(blur: 10, thickness: 30),
+    ),
+  );
   unawaited(_bootInBackground());
 }
 

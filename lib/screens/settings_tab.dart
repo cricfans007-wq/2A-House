@@ -22,7 +22,7 @@ class SettingsTab extends StatelessWidget {
         final me = store.settings.myPersonId;
         final hours = [18, 19, 20, 21, 22];
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: glassTabContentPadding,
           children: [
             Text(
               'House',
@@ -429,7 +429,9 @@ class _NotificationCardState extends State<_NotificationCard> {
             Text(
               _enabled
                   ? 'This phone will ping the night before and at 9am on your room’s jobs.'
-                  : 'Android never asked because the app requested permission too early. Tap Allow, then Allow on the system prompt.',
+                  : Theme.of(context).platform == TargetPlatform.iOS
+                  ? 'Tap Allow, then Allow on the iPhone prompt. If you said Don’t Allow, turn them on in Settings → 2A House → Notifications.'
+                  : 'Tap Allow, then Allow on the system prompt.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
                 height: 1.35,
@@ -454,7 +456,7 @@ class _NotificationCardState extends State<_NotificationCard> {
                     messenger.showSnackBar(
                       const SnackBar(
                         content: Text(
-                          'Still off — enable notifications for 2A House in Android settings',
+                          'Still off — enable notifications for 2A House in Settings',
                         ),
                       ),
                     );

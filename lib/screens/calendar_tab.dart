@@ -38,7 +38,7 @@ class _CalendarTabState extends State<CalendarTab> {
         final scheme = Theme.of(context).colorScheme;
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: glassTabContentPadding,
           children: [
             Text(
               'Who’s on',

@@ -38,7 +38,7 @@ class _PersonTabState extends State<PersonTab> {
         final upcoming = store.hasUpcomingBadge(person);
 
         return ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+          padding: glassTabContentPadding,
           children: [
             Text(
               person.name,

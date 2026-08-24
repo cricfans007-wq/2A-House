@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../data/house_store.dart';
 import '../data/notifications.dart';
@@ -49,14 +50,13 @@ class _HomeShellState extends State<HomeShell> {
     if (_askedWho || widget.store.settings.myPersonId != null) return;
     if (!mounted) return;
     _askedWho = true;
-    final id = await showModalBottomSheet<String>(
+    final id = await GlassSheet.show<String>(
       context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
       builder: (context) {
-        return SafeArea(
+        return Material(
+          color: Colors.transparent,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -115,53 +115,75 @@ class _HomeShellState extends State<HomeShell> {
       listenable: store,
       builder: (context, _) {
         final me = store.me;
+        final peopleBadge =
+            store.me != null && store.hasUpcomingBadge(store.me!);
+        final peopleIcon = peopleBadge
+            ? const Badge(child: Icon(Icons.people_outline))
+            : const Icon(Icons.people_outline);
         return Scaffold(
-          appBar: AppBar(
-            title: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('2A House'),
-                if (me != null)
-                  Text(
-                    '${me.name} · Room ${me.roomId}',
-                    style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      fontWeight: FontWeight.w600,
+          backgroundColor: Colors.transparent,
+          body: GlassScaffold(
+            background: const HouseGlassBackground(),
+            statusBarStyle: GlassStatusBarStyle.auto,
+            extendBody: false,
+            contentAwareBrightness: true,
+            appBar: GlassAppBar(
+              centerTitle: false,
+              toolbarHeight: me != null ? 56 : 44,
+              title: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('2A House'),
+                  if (me != null)
+                    Text(
+                      '${me.name} · Room ${me.roomId}',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ),
+                ],
+              ),
+            ),
+            body: Material(
+              type: MaterialType.transparency,
+              child: IndexedStack(index: _index, children: _pages),
+            ),
+            bottomBar: GlassTabBar.bottom(
+              selectedIndex: _index,
+              onTabSelected: (i) => setState(() => _index = i),
+              verticalPadding: 12,
+              horizontalPadding: 16,
+              tabs: [
+                const GlassTab(
+                  icon: Icon(Icons.home_outlined),
+                  activeIcon: Icon(Icons.home),
+                  label: 'Today',
+                  glowColor: Color(0xFF0F766E),
+                ),
+                GlassTab(
+                  icon: peopleIcon,
+                  activeIcon: peopleBadge
+                      ? const Badge(child: Icon(Icons.people))
+                      : const Icon(Icons.people),
+                  label: 'People',
+                  glowColor: roomBlue,
+                ),
+                const GlassTab(
+                  icon: Icon(Icons.calendar_month_outlined),
+                  activeIcon: Icon(Icons.calendar_month),
+                  label: 'Calendar',
+                  glowColor: roomGreen,
+                ),
+                const GlassTab(
+                  icon: Icon(Icons.cottage_outlined),
+                  activeIcon: Icon(Icons.cottage),
+                  label: 'House',
+                  glowColor: roomOrange,
+                ),
               ],
             ),
-          ),
-          body: IndexedStack(index: _index, children: _pages),
-          bottomNavigationBar: NavigationBar(
-            selectedIndex: _index,
-            onDestinationSelected: (i) => setState(() => _index = i),
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home),
-                label: 'Today',
-              ),
-              NavigationDestination(
-                icon: Badge(
-                  isLabelVisible:
-                      store.me != null && store.hasUpcomingBadge(store.me!),
-                  child: const Icon(Icons.people_outline),
-                ),
-                selectedIcon: const Icon(Icons.people),
-                label: 'People',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.calendar_month_outlined),
-                selectedIcon: Icon(Icons.calendar_month),
-                label: 'Calendar',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.cottage_outlined),
-                selectedIcon: Icon(Icons.cottage),
-                label: 'House',
-              ),
-            ],
           ),
         );
       },

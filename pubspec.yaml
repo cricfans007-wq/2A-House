@@ -44,6 +44,7 @@ dependencies:
   firebase_core: ^4.0.0
   firebase_auth: ^6.0.0
   cloud_firestore: ^6.0.0
+  liquid_glass_widgets: ^0.30.2
 
 dev_dependencies:
   flutter_test:

@@ -36,6 +36,9 @@ class NotificationService {
       requestAlertPermission: false,
       requestBadgePermission: false,
       requestSoundPermission: false,
+      defaultPresentAlert: true,
+      defaultPresentBadge: true,
+      defaultPresentSound: true,
     );
     await _plugin.initialize(
       const InitializationSettings(android: android, iOS: ios),
@@ -46,15 +49,28 @@ class NotificationService {
 
   Future<bool> isEnabled() async {
     if (kIsWeb || !_ready) return false;
-    return await _android?.areNotificationsEnabled() ?? true;
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      final opts = await _ios?.checkPermissions();
+      return opts?.isEnabled ?? false;
+    }
+    return await _android?.areNotificationsEnabled() ?? false;
   }
 
   /// Call after the first frame so the OS dialog can appear.
   Future<bool> requestPermission() async {
     if (kIsWeb || !_ready) return false;
-    final androidOk = await _android?.requestNotificationsPermission();
-    await _ios?.requestPermissions(alert: true, badge: true, sound: true);
-    permissionGranted = androidOk ?? await isEnabled();
+    if (defaultTargetPlatform == TargetPlatform.iOS) {
+      permissionGranted =
+          await _ios?.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          false;
+      return permissionGranted;
+    }
+    permissionGranted =
+        await _android?.requestNotificationsPermission() ?? false;
     return permissionGranted;
   }
 
@@ -75,7 +91,11 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
       ),
     );
   }
@@ -94,7 +114,11 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
       ),
     );
   }
@@ -169,7 +193,11 @@ class NotificationService {
           importance: Importance.high,
           priority: Priority.high,
         ),
-        iOS: DarwinNotificationDetails(),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
       ),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
     );
