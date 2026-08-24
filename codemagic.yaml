@@ -32,15 +32,21 @@ workflows:
       - name: Build IPA
         script: |
           set -e
-          LATEST=$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || echo 0)
-          if [ -z "$LATEST" ] || [ "$LATEST" = "None" ]; then
-            LATEST=0
-          fi
-          BUILD_NUMBER=$((LATEST + 1))
-          echo "Building 1.0.0 ($BUILD_NUMBER)"
+          digits() {
+            echo "$1" | tr -cd '0-9'
+          }
+          TF=$(digits "$(app-store-connect get-latest-testflight-build-number "$BUNDLE_ID" 2>/dev/null || true)")
+          AS=$(digits "$(app-store-connect get-latest-app-store-build-number "$BUNDLE_ID" 2>/dev/null || true)")
+          [ -z "$TF" ] && TF=0
+          [ -z "$AS" ] && AS=0
+          LATEST=$TF
+          [ "$AS" -gt "$LATEST" ] && LATEST=$AS
+          [ "$LATEST" -lt 1 ] && LATEST=1
+          NEXT_BUILD=$((LATEST + 1))
+          echo "Building 1.0.0 ($NEXT_BUILD) (Apple latest=$LATEST)"
           flutter build ipa --release \
             --build-name=1.0.0 \
-            --build-number="$BUILD_NUMBER" \
+            --build-number="$NEXT_BUILD" \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
