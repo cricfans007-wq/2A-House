@@ -3,9 +3,8 @@ workflows:
     name: iOS TestFlight
     instance_type: mac_mini_m2
     max_build_duration: 60
-    # Name this key exactly "Codemagic" in Codemagic → Team integrations → Developer Portal.
     integrations:
-      app_store_connect: Codemagic
+      app_store_connect: GTU_Student
     environment:
       flutter: stable
       xcode: latest
