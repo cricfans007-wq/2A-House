@@ -43,8 +43,8 @@ workflows:
           AS=$(parse_build "$AS_RAW")
           [ -z "$TF" ] && TF=0
           [ -z "$AS" ] && AS=0
-          # Apple already accepted CFBundleVersion 1 and 2.
-          MIN=2
+          # Apple already accepted CFBundleVersion 1, 2, and possibly 3.
+          MIN=3
           LATEST=$MIN
           [ "$TF" -gt "$LATEST" ] && LATEST=$TF
           [ "$AS" -gt "$LATEST" ] && LATEST=$AS
