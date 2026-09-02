@@ -68,9 +68,9 @@ class _WeekTabState extends State<WeekTab> {
                   me == null
                       ? 'Pick yourself in House so we can highlight your jobs.'
                       : mine.isEmpty && _selected == today
-                      ? 'You’re off today — nothing for Room ${me.roomId}.'
+                      ? 'You’re off today — nothing for ${store.house.roomLabel(me.roomId)}.'
                       : mine.isNotEmpty && _selected == today
-                      ? 'Room ${me.roomId} is on. Mark done when it’s finished.'
+                      ? '${store.house.roomLabel(me.roomId)} is on. Mark done when it’s finished.'
                       : DateFormat('EEEE d MMMM').format(_selected),
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -110,7 +110,7 @@ class _WeekTabState extends State<WeekTab> {
                 const _QuietState(
                   icon: Icons.weekend_outlined,
                   title: 'Nothing on this day',
-                  body: 'No downstairs, upstairs, or garbage.',
+                  body: 'No chores on this day. Set job days in House.',
                 )
               else ...[
                 if (mine.isNotEmpty) ...[
@@ -183,6 +183,7 @@ class _WeekStrip extends StatelessWidget {
                 day: day,
                 isToday: day == today,
                 isSelected: day == selected,
+                house: store.house,
                 mine:
                     myRoom != null &&
                     store
@@ -212,6 +213,7 @@ class _DayCell extends StatelessWidget {
     required this.mine,
     required this.rooms,
     required this.onTap,
+    required this.house,
   });
 
   final DateTime day;
@@ -220,6 +222,7 @@ class _DayCell extends StatelessWidget {
   final bool mine;
   final List<int> rooms;
   final VoidCallback onTap;
+  final HouseProfile house;
 
   @override
   Widget build(BuildContext context) {
@@ -275,7 +278,9 @@ class _DayCell extends StatelessWidget {
                         height: 7,
                         margin: const EdgeInsets.symmetric(horizontal: 1),
                         decoration: BoxDecoration(
-                          color: isSelected ? scheme.onPrimary : roomColor(r),
+                          color: isSelected
+                              ? scheme.onPrimary
+                              : roomColor(r, house),
                           shape: BoxShape.circle,
                         ),
                       ),

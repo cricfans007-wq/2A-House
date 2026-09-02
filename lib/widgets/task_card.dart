@@ -20,7 +20,7 @@ class TaskCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = roomColor(occurrence.assignedRoom);
+    final color = roomColor(occurrence.assignedRoom, store.house);
     final names = store.namesForRoom(occurrence.assignedRoom);
     final scheme = Theme.of(context).colorScheme;
     final mine = store.me?.roomId == occurrence.assignedRoom;
@@ -33,7 +33,11 @@ class TaskCard extends StatelessWidget {
       child: Card(
         clipBehavior: Clip.antiAlias,
         color: mine && !done
-            ? roomFill(occurrence.assignedRoom, Theme.of(context).brightness)
+            ? roomFill(
+                occurrence.assignedRoom,
+                Theme.of(context).brightness,
+                store.house,
+              )
             : null,
         child: IntrinsicHeight(
           child: Row(
@@ -69,8 +73,8 @@ class TaskCard extends StatelessWidget {
                               children: [
                                 Text(
                                   occurrence.isMakeup
-                                      ? 'Makeup · ${occurrence.jobType.title}'
-                                      : occurrence.jobType.title,
+                                      ? 'Makeup · ${store.jobTitle(occurrence.jobType)}'
+                                      : store.jobTitle(occurrence.jobType),
                                   style: Theme.of(context).textTheme.titleMedium
                                       ?.copyWith(
                                         fontWeight: FontWeight.w800,
@@ -81,7 +85,7 @@ class TaskCard extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  'Room ${occurrence.assignedRoom} · $names',
+                                  '${store.house.roomLabel(occurrence.assignedRoom)} · $names',
                                   style: TextStyle(
                                     color: color,
                                     fontWeight: FontWeight.w700,
@@ -132,7 +136,7 @@ class TaskCard extends StatelessWidget {
                       Text(
                         occurrence.isMakeup && occurrence.missedDate != null
                             ? 'Missed ${DateFormat('d MMM').format(occurrence.missedDate!)}'
-                            : occurrence.jobType.blurb,
+                            : store.jobBlurb(occurrence.jobType),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: scheme.onSurfaceVariant,
                           height: 1.35,
@@ -140,7 +144,9 @@ class TaskCard extends StatelessWidget {
                       ),
                       if (!compact) ...[
                         const SizedBox(height: 10),
-                        for (final item in occurrence.jobType.checklist)
+                        for (final item in store.jobChecklist(
+                          occurrence.jobType,
+                        ))
                           Padding(
                             padding: const EdgeInsets.only(bottom: 4),
                             child: Row(
@@ -195,12 +201,12 @@ class TaskCard extends StatelessWidget {
                                 );
                               },
                               itemBuilder: (context) => [
-                                for (final room in [1, 2, 3])
+                                for (final room in store.house.rooms)
                                   PopupMenuItem(
-                                    value: '$room',
-                                    enabled: room != occurrence.assignedRoom,
+                                    value: '${room.id}',
+                                    enabled: room.id != occurrence.assignedRoom,
                                     child: Text(
-                                      'Give to Room $room (${store.namesForRoom(room)})',
+                                      'Give to ${room.name} (${store.namesForRoom(room.id)})',
                                     ),
                                   ),
                               ],
@@ -295,25 +301,32 @@ class _Pill extends StatelessWidget {
 }
 
 class RoomBadge extends StatelessWidget {
-  const RoomBadge({super.key, required this.roomId, this.small = false});
+  const RoomBadge({
+    super.key,
+    required this.roomId,
+    this.small = false,
+    this.house,
+  });
 
   final int roomId;
   final bool small;
+  final HouseProfile? house;
 
   @override
   Widget build(BuildContext context) {
-    final color = roomColor(roomId);
+    final color = roomColor(roomId, house);
+    final label = house?.roomById(roomId)?.name ?? 'R$roomId';
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: small ? 7 : 9,
         vertical: small ? 2 : 4,
       ),
       decoration: BoxDecoration(
-        color: roomFill(roomId, Theme.of(context).brightness),
+        color: roomFill(roomId, Theme.of(context).brightness, house),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        'R$roomId',
+        label,
         style: TextStyle(
           color: color,
           fontWeight: FontWeight.w800,
@@ -347,11 +360,15 @@ class PersonChips extends StatelessWidget {
             selected: p.id == selectedId,
             showCheckmark: false,
             avatar: CircleAvatar(
-              backgroundColor: roomFill(p.roomId, Theme.of(context).brightness),
+              backgroundColor: roomFill(
+                p.roomId,
+                Theme.of(context).brightness,
+                store.house,
+              ),
               child: Text(
                 p.name.characters.first,
                 style: TextStyle(
-                  color: roomColor(p.roomId),
+                  color: roomColor(p.roomId, store.house),
                   fontWeight: FontWeight.w800,
                   fontSize: 12,
                 ),

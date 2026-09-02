@@ -2,17 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import '../data/house_store.dart';
+import '../data/house_sync.dart';
 import '../data/notifications.dart';
 import '../theme.dart';
 import 'calendar_tab.dart';
 import 'person_tab.dart';
 import 'settings_tab.dart';
 import 'week_tab.dart';
+import 'welcome_screen.dart';
 
 class HomeShell extends StatefulWidget {
-  const HomeShell({super.key, required this.store});
+  const HomeShell({super.key, required this.store, required this.sync});
 
   final HouseStore store;
+  final HouseSync sync;
 
   @override
   State<HomeShell> createState() => _HomeShellState();
@@ -21,6 +24,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
   var _askedWho = false;
+  var _whoScheduled = false;
   late final List<Widget> _pages;
 
   @override
@@ -48,6 +52,7 @@ class _HomeShellState extends State<HomeShell> {
 
   Future<void> _maybeAskWho() async {
     if (_askedWho || widget.store.settings.myPersonId != null) return;
+    if (!widget.store.settings.hasHouse || widget.store.people.isEmpty) return;
     if (!mounted) return;
     _askedWho = true;
     final id = await GlassSheet.show<String>(
@@ -82,17 +87,18 @@ class _HomeShellState extends State<HomeShell> {
                       backgroundColor: roomFill(
                         p.roomId,
                         Theme.of(context).brightness,
+                        widget.store.house,
                       ),
                       child: Text(
                         p.name.characters.first,
                         style: TextStyle(
-                          color: roomColor(p.roomId),
+                          color: roomColor(p.roomId, widget.store.house),
                           fontWeight: FontWeight.w800,
                         ),
                       ),
                     ),
                     title: Text(p.name),
-                    subtitle: Text('Room ${p.roomId}'),
+                    subtitle: Text(widget.store.house.roomLabel(p.roomId)),
                     onTap: () => Navigator.pop(context, p.id),
                   ),
               ],
@@ -114,6 +120,31 @@ class _HomeShellState extends State<HomeShell> {
     return ListenableBuilder(
       listenable: store,
       builder: (context, _) {
+        if (store.settings.hasHouse &&
+            store.settings.myPersonId == null &&
+            store.people.isNotEmpty &&
+            !_askedWho &&
+            !_whoScheduled) {
+          _whoScheduled = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _whoScheduled = false;
+            if (mounted) _maybeAskWho();
+          });
+        }
+        if (!store.settings.hasHouse) {
+          return Scaffold(
+            backgroundColor: Colors.transparent,
+            body: GlassScaffold(
+              background: const HouseGlassBackground(),
+              statusBarStyle: GlassStatusBarStyle.auto,
+              extendBody: false,
+              body: Material(
+                type: MaterialType.transparency,
+                child: WelcomeScreen(store: store, sync: widget.sync),
+              ),
+            ),
+          );
+        }
         final me = store.me;
         final peopleBadge =
             store.me != null && store.hasUpcomingBadge(store.me!);
@@ -134,10 +165,10 @@ class _HomeShellState extends State<HomeShell> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text('2A House'),
+                  Text(store.house.name),
                   if (me != null)
                     Text(
-                      '${me.name} · Room ${me.roomId}',
+                      '${me.name} · ${store.house.roomLabel(me.roomId)}',
                       style: Theme.of(context).textTheme.labelMedium?.copyWith(
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                         fontWeight: FontWeight.w600,

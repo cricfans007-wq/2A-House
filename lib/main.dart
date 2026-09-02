@@ -23,6 +23,7 @@ Future<void> main() async {
   await houseStore.init();
   await glassReady;
   houseStore.cloudReconnect = houseSync.start;
+  houseStore.cloudStop = houseSync.stop;
   runApp(
     LiquidGlassWidgets.wrap(
       child: const HouseApp(),
@@ -35,7 +36,9 @@ Future<void> main() async {
 }
 
 Future<void> _bootInBackground() async {
-  unawaited(houseSync.start());
+  if (houseStore.settings.hasHouse) {
+    unawaited(houseSync.start());
+  }
   await NotificationService.instance.init();
   await houseStore.scanPenalties();
   await NotificationService.instance.resync(houseStore);
@@ -55,11 +58,11 @@ class HouseApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: '2A House',
+      title: 'House chores',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(Brightness.light),
       darkTheme: buildTheme(Brightness.dark),
-      home: HomeShell(store: houseStore),
+      home: HomeShell(store: houseStore, sync: houseSync),
     );
   }
 }

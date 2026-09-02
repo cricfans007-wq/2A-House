@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -13,20 +14,25 @@ import 'notifications.dart';
 class HouseSync {
   HouseSync(this.store);
 
-  static const houseId = '2a-house';
-
   final HouseStore store;
-  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _sub;
+  StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _occSub;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _houseSub;
   var _primed = false;
   var connected = false;
   var _starting = false;
   Timer? _retry;
 
-  CollectionReference<Map<String, dynamic>> get _col => FirebaseFirestore
-      .instance
-      .collection('houses')
-      .doc(houseId)
-      .collection('occurrences');
+  CollectionReference<Map<String, dynamic>>? _occCol(String houseId) =>
+      FirebaseFirestore.instance
+          .collection('houses')
+          .doc(houseId)
+          .collection('occurrences');
+
+  DocumentReference<Map<String, dynamic>> _houseDoc(String houseId) =>
+      FirebaseFirestore.instance.collection('houses').doc(houseId);
+
+  DocumentReference<Map<String, dynamic>> _inviteDoc(String code) =>
+      FirebaseFirestore.instance.collection('invites').doc(code);
 
   static Future<bool> initializeFirebase() async {
     if (Firebase.apps.isNotEmpty) return true;
@@ -41,21 +47,59 @@ class HouseSync {
     }
   }
 
+  Future<String?> _ensureAuth() async {
+    if (!await initializeFirebase()) return null;
+    if (FirebaseAuth.instance.currentUser == null) {
+      await FirebaseAuth.instance.signInAnonymously();
+    }
+    return FirebaseAuth.instance.currentUser?.uid;
+  }
+
+  static String newId(String prefix) {
+    final r = Random.secure().nextInt(1 << 32).toRadixString(36);
+    return '${prefix}_${DateTime.now().millisecondsSinceEpoch}_$r';
+  }
+
+  static String inviteCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final r = Random.secure();
+    return List.generate(8, (_) => chars[r.nextInt(chars.length)]).join();
+  }
+
   Future<bool> start() async {
     if (_starting) return connected;
     _starting = true;
     _retry?.cancel();
     try {
-      if (!await initializeFirebase()) {
+      final uid = await _ensureAuth();
+      if (uid == null) {
         _fail('Couldn’t start Firebase on this phone');
         return false;
       }
-      if (FirebaseAuth.instance.currentUser == null) {
-        await FirebaseAuth.instance.signInAnonymously();
+      final houseId = store.settings.houseId;
+      if (houseId == null || houseId.isEmpty) {
+        connected = false;
+        store.setCloudConnected(false, error: 'Join or create a house first');
+        return false;
       }
       store.cloudPush = push;
-      await _sub?.cancel();
-      _sub = _col.snapshots().listen(
+      store.cloudPushHouse = pushHouse;
+      await _houseSub?.cancel();
+      await _occSub?.cancel();
+      _primed = false;
+      _houseSub = _houseDoc(houseId).snapshots().listen(
+        (snap) {
+          final data = snap.data();
+          if (data == null) return;
+          store.applyRemoteHouse(HouseProfile.fromMap(data));
+        },
+        onError: (e) {
+          debugPrint('House listen failed: $e');
+          _fail('House board blocked — will retry');
+          _scheduleRetry();
+        },
+      );
+      _occSub = _occCol(houseId)!.snapshots().listen(
         _onSnapshot,
         onError: (e) {
           debugPrint('House sync listen failed: $e');
@@ -74,6 +118,19 @@ class HouseSync {
     } finally {
       _starting = false;
     }
+  }
+
+  Future<void> stop() async {
+    _retry?.cancel();
+    _retry = null;
+    await _houseSub?.cancel();
+    await _occSub?.cancel();
+    _houseSub = null;
+    _occSub = null;
+    connected = false;
+    store.cloudPush = null;
+    store.cloudPushHouse = null;
+    store.setCloudConnected(false);
   }
 
   void _fail(String message) {
@@ -95,6 +152,9 @@ class HouseSync {
         text.contains('admin-restricted-operation')) {
       return 'Anonymous sign-in is off in Firebase';
     }
+    if (text.contains('permission-denied')) {
+      return 'Couldn’t join that house — check the code';
+    }
     if (text.contains('network') ||
         text.contains('unavailable') ||
         text.contains('SocketException')) {
@@ -103,12 +163,105 @@ class HouseSync {
     return 'Couldn’t join the house board';
   }
 
+  Future<HouseProfile> createHouse({
+    required String name,
+    required List<HouseRoom> rooms,
+    required List<Person> people,
+    Map<JobType, JobRule>? rules,
+  }) async {
+    final uid = await _ensureAuth();
+    if (uid == null) {
+      throw StateError('Couldn’t start Firebase on this phone');
+    }
+    var code = inviteCode();
+    for (var i = 0; i < 8; i++) {
+      final existing = await _inviteDoc(code).get();
+      if (!existing.exists) break;
+      code = inviteCode();
+    }
+    final id = newId('h');
+    var profile = HouseProfile.blank(
+      id: id,
+      name: _clipName(name),
+      inviteCode: code,
+      rooms: rooms,
+      people: people,
+      memberUids: [uid],
+    );
+    if (rules != null) {
+      profile = profile.copyWith(rules: rules);
+    }
+    final batch = FirebaseFirestore.instance.batch();
+    batch.set(_houseDoc(id), profile.toMap());
+    batch.set(_inviteDoc(code), {
+      'houseId': id,
+      'memberUids': [uid],
+    });
+    await batch.commit();
+    await store.adoptHouse(profile);
+    unawaited(start());
+    return profile;
+  }
+
+  Future<HouseProfile> joinHouse(String rawCode) async {
+    final uid = await _ensureAuth();
+    if (uid == null) {
+      throw StateError('Couldn’t start Firebase on this phone');
+    }
+    final code = rawCode.trim().toUpperCase().replaceAll(' ', '');
+    if (!RegExp(r'^[A-Z0-9]{8}$').hasMatch(code)) {
+      throw StateError('Invite codes are 8 letters and numbers');
+    }
+    final invite = await _inviteDoc(code).get();
+    if (!invite.exists) {
+      throw StateError('No house uses that code');
+    }
+    final houseId = invite.data()?['houseId'] as String?;
+    if (houseId == null || houseId.isEmpty) {
+      throw StateError('That invite is incomplete');
+    }
+    await _inviteDoc(code).update({
+      'memberUids': FieldValue.arrayUnion([uid]),
+    });
+    await _houseDoc(houseId).update({
+      'memberUids': FieldValue.arrayUnion([uid]),
+    });
+    final snap = await _houseDoc(houseId).get();
+    final data = snap.data();
+    if (data == null) {
+      throw StateError('House is missing');
+    }
+    final profile = HouseProfile.fromMap(data);
+    await store.adoptHouse(profile);
+    unawaited(start());
+    return profile;
+  }
+
   Future<void> push(Occurrence occ) async {
-    if (!connected) return;
+    final houseId = store.settings.houseId;
+    if (!connected || houseId == null) return;
     try {
-      await _col.doc(occ.id).set(occ.toMap(), SetOptions(merge: true));
+      await _occCol(
+        houseId,
+      )!.doc(occ.id).set(occ.toMap(), SetOptions(merge: true));
     } catch (e) {
       debugPrint('House sync push failed: $e');
+    }
+  }
+
+  Future<void> pushHouse(HouseProfile next) async {
+    final houseId = store.settings.houseId;
+    if (houseId == null || houseId.isEmpty) return;
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      final members = <String>{...next.memberUids};
+      if (uid != null) members.add(uid);
+      await _houseDoc(houseId).set(
+        next.copyWith(memberUids: members.toList()).toMap(),
+        SetOptions(merge: true),
+      );
+    } catch (e) {
+      debugPrint('House profile push failed: $e');
     }
   }
 
@@ -139,9 +292,15 @@ class HouseSync {
   }
 
   Future<void> dispose() async {
-    _retry?.cancel();
-    await _sub?.cancel();
+    await stop();
   }
+}
+
+String _clipName(String name) {
+  final trimmed = name.trim();
+  if (trimmed.isEmpty) return 'House';
+  if (trimmed.length <= 40) return trimmed;
+  return trimmed.substring(0, 40);
 }
 
 void pingIfSomeoneElseNotified({
@@ -155,9 +314,9 @@ void pingIfSomeoneElseNotified({
   if (after.notifiedById != null && after.notifiedById == me) return;
   final who =
       store.personById(after.notifiedById)?.name ??
-      'Room ${after.assignedRoom}';
+      store.house.roomLabel(after.assignedRoom);
   NotificationService.instance.showHouseUpdate(
-    title: '$who can’t do ${after.jobType.title} today',
+    title: '$who can’t do ${store.jobTitle(after.jobType)} today',
     body:
         'No 2× — they told the house on time. ${store.namesForRoom(after.assignedRoom)}',
   );
@@ -174,9 +333,9 @@ void pingIfSomeoneElseFinished({
   if (after.completedById != null && after.completedById == me) return;
   final who =
       store.personById(after.completedById)?.name ??
-      'Room ${after.assignedRoom}';
+      store.house.roomLabel(after.assignedRoom);
   NotificationService.instance.showHouseUpdate(
-    title: '$who finished ${after.jobType.title}',
+    title: '$who finished ${store.jobTitle(after.jobType)}',
     body: store.namesForRoom(after.assignedRoom),
   );
 }

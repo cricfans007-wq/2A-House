@@ -49,7 +49,7 @@ class _CalendarTabState extends State<CalendarTab> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Downstairs R1→R2→R3 · Upstairs R3→R2→R1',
+              store.house.rulesSummary(),
               style: Theme.of(
                 context,
               ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
@@ -57,17 +57,18 @@ class _CalendarTabState extends State<CalendarTab> {
             const SizedBox(height: 10),
             Row(
               children: [
-                for (final room in [1, 2, 3]) ...[
-                  RoomBadge(roomId: room, small: true),
+                for (final room in store.house.rooms) ...[
+                  RoomBadge(roomId: room.id, small: true, house: store.house),
                   const SizedBox(width: 6),
                   Flexible(
                     child: Text(
-                      store.namesForRoom(room).split(' & ').first,
+                      store.namesForRoom(room.id).split(' & ').first,
                       overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.labelSmall,
                     ),
                   ),
-                  if (room != 3) const SizedBox(width: 10),
+                  if (room.id != store.house.rooms.last.id)
+                    const SizedBox(width: 10),
                 ],
               ],
             ),
@@ -129,7 +130,7 @@ class _CalendarTabState extends State<CalendarTab> {
                                   horizontal: 1,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: roomColor(r),
+                                  color: roomColor(r, store.house),
                                   shape: BoxShape.circle,
                                 ),
                               ),

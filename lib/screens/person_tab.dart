@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../data/house_store.dart';
-import '../models.dart';
 import '../theme.dart';
 import '../widgets/task_card.dart';
 
@@ -20,8 +19,10 @@ class _PersonTabState extends State<PersonTab> {
   @override
   void initState() {
     super.initState();
+    final people = widget.store.people;
     _personId =
-        widget.store.settings.myPersonId ?? widget.store.people.first.id;
+        widget.store.settings.myPersonId ??
+        (people.isEmpty ? null : people.first.id);
   }
 
   @override
@@ -32,6 +33,12 @@ class _PersonTabState extends State<PersonTab> {
       listenable: store,
       builder: (context, _) {
         final people = store.people;
+        if (people.isEmpty) {
+          return ListView(
+            padding: glassTabContentPadding,
+            children: const [Text('Add people in House first.')],
+          );
+        }
         final person = store.personById(_personId) ?? people.first;
         final tasks = store.upcomingForPerson(person);
         final penalties = store.openDebtsForRoom(person.roomId);
@@ -50,7 +57,7 @@ class _PersonTabState extends State<PersonTab> {
             const SizedBox(height: 2),
             Row(
               children: [
-                RoomBadge(roomId: person.roomId),
+                RoomBadge(roomId: person.roomId, house: store.house),
                 const SizedBox(width: 8),
                 Text(
                   store.namesForRoom(person.roomId),
@@ -127,8 +134,11 @@ class _PersonTabState extends State<PersonTab> {
               for (final debt in penalties)
                 Card(
                   child: ListTile(
-                    leading: Icon(Icons.replay, color: roomColor(debt.roomId)),
-                    title: Text('${debt.jobType.title} makeup'),
+                    leading: Icon(
+                      Icons.replay,
+                      color: roomColor(debt.roomId, store.house),
+                    ),
+                    title: Text('${store.jobTitle(debt.jobType)} makeup'),
                     subtitle: Text(
                       'Missed ${debt.missedDate.day}/${debt.missedDate.month}/${debt.missedDate.year}',
                     ),

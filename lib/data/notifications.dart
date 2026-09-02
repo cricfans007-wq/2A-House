@@ -87,7 +87,8 @@ class NotificationService {
         android: AndroidNotificationDetails(
           'house_done',
           'House updates',
-          channelDescription: 'When someone finishes a chore or tells the house',
+          channelDescription:
+              'When someone finishes a chore or tells the house',
           importance: Importance.high,
           priority: Priority.high,
         ),
@@ -104,7 +105,7 @@ class NotificationService {
     if (!_ready) return;
     await _plugin.show(
       9001,
-      '2A House',
+      'House chores',
       'Reminders are on. You’ll get a ping the night before your jobs.',
       const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -144,13 +145,13 @@ class NotificationService {
         await _schedule(
           id: id++,
           when: _eveningBefore(day, store.settings.notifyHour),
-          title: 'Tomorrow: ${occ.jobType.title}',
+          title: 'Tomorrow: ${store.jobTitle(occ.jobType)}',
           body: _body(store, occ, prefix: 'Tomorrow'),
         );
         await _schedule(
           id: id++,
           when: _morningOf(day),
-          title: 'Today: ${occ.jobType.title}',
+          title: 'Today: ${store.jobTitle(occ.jobType)}',
           body: _body(store, occ, prefix: 'Today'),
         );
       }
@@ -159,7 +160,7 @@ class NotificationService {
 
   String _body(HouseStore store, Occurrence occ, {required String prefix}) {
     final makeup = occ.isMakeup ? 'Makeup · ' : '';
-    return '$prefix $makeup${occ.jobType.title} — ${store.namesForRoom(occ.assignedRoom)}. ${occ.jobType.blurb}';
+    return '$prefix $makeup${store.jobTitle(occ.jobType)} — ${store.namesForRoom(occ.assignedRoom)}. ${store.jobBlurb(occ.jobType)}';
   }
 
   tz.TZDateTime _eveningBefore(DateTime day, int hour) {

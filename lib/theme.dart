@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
 
+import 'models.dart';
+
 const roomBlue = Color(0xFF2563EB);
 const roomGreen = Color(0xFF16A34A);
 const roomOrange = Color(0xFFEA580C);
 const cream = Color(0xFFF3EEE4);
 const ink = Color(0xFF1C1917);
 
-Color roomColor(int roomId) => switch (roomId) {
-  1 => roomBlue,
-  2 => roomGreen,
-  3 => roomOrange,
-  _ => const Color(0xFF78716C),
-};
+Color roomColor(int roomId, [HouseProfile? house]) {
+  final named = house?.roomById(roomId);
+  if (named != null) return Color(named.colorValue);
+  return switch (roomId) {
+    1 => roomBlue,
+    2 => roomGreen,
+    3 => roomOrange,
+    _ => const Color(0xFF78716C),
+  };
+}
 
-Color roomFill(int roomId, Brightness brightness) {
-  final c = roomColor(roomId);
+Color roomFill(int roomId, Brightness brightness, [HouseProfile? house]) {
+  final c = roomColor(roomId, house);
   return c.withValues(alpha: brightness == Brightness.dark ? 0.24 : 0.14);
 }
 

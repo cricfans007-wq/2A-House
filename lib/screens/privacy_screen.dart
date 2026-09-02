@@ -38,22 +38,22 @@ class PrivacyScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 4),
-            Text('Last updated: 20 August 2026', style: muted),
+            Text('Last updated: 2 September 2026', style: muted),
             const SizedBox(height: 16),
             Text(
-              'This policy is for the 2A House app, a shared cleaning roster for one household.',
+              'This policy is for the 2A House app, a shared cleaning roster for roommates. You create a house or join one with an invite code.',
               style: muted,
             ),
             _h(context, 'Who we are'),
             Text(
-              '2A House is published by the developer named on the Google Play listing. It is meant for the people who live in the house, not the general public.',
+              '2A House is published by the developer named on the App Store and Google Play listings. It is meant for people who share a house, not a public social network.',
               style: muted,
             ),
             _h(context, 'What we collect'),
             Text(
-              'First names you type in the app, which room each person is in, and which person this phone belongs to (kept on that phone).\n\n'
+              'The house name, room names, first names you type, which room each person is in, chore rules you set, and which person this phone belongs to (kept on that phone).\n\n'
               'Chore records: who is assigned, whether a job is done, who marked it done, whether someone told the house they cannot do a job, and makeup / 2× records.\n\n'
-              'An anonymous ID from Google Firebase so this phone can sync. We do not ask for an email, phone number, or password.',
+              'An anonymous ID from Google Firebase so this phone can sync. We do not ask for an email, phone number, or password. Houses are not listed; other people need your 8-character invite code to join.',
               style: muted,
             ),
             _h(context, 'What we do not collect'),
@@ -63,7 +63,7 @@ class PrivacyScreen extends StatelessWidget {
             ),
             _h(context, 'How we use it'),
             Text(
-              'To show the roster, keep the six phones in sync, send reminders and house pings on the device, and apply the missed-job makeup rule.',
+              'To show the roster, keep phones in the same house in sync, send reminders and house pings on the device, and apply the missed-job makeup rule.',
               style: muted,
             ),
             _h(context, 'Where it is stored'),
@@ -73,7 +73,7 @@ class PrivacyScreen extends StatelessWidget {
             ),
             _h(context, 'Who sees it'),
             Text(
-              'Anyone who installs 2A House and reaches the same house board can see the names and chore records on that board.',
+              'Anyone who installs 2A House and joins the same house with the invite code can see the names, rooms, rules, and chore records on that board.',
               style: muted,
             ),
             _h(context, 'Notifications'),
@@ -83,7 +83,7 @@ class PrivacyScreen extends StatelessWidget {
             ),
             _h(context, 'Keeping or deleting data'),
             Text(
-              'You can change a name in House. Chore records stay until someone in the house updates them. To ask for house data to be removed from the cloud, use the developer contact email on the Google Play listing for 2A House.',
+              'You can change names, rooms, and rules in House, and leave a house on this phone. Chore records stay until someone in the house updates them. To ask for house data to be removed from the cloud, use the developer contact email on the App Store or Google Play listing for 2A House.',
               style: muted,
             ),
             _h(context, 'Children'),

@@ -18,44 +18,56 @@ class HouseStore extends ChangeNotifier {
   late Box<dynamic> _settings;
 
   AppSettings settings = const AppSettings();
+  HouseProfile house = HouseProfile.blank(
+    id: 'local',
+    name: 'House',
+    inviteCode: '',
+    rooms: const [
+      HouseRoom(id: 1, name: 'Room 1', colorValue: 0xFF2563EB),
+      HouseRoom(id: 2, name: 'Room 2', colorValue: 0xFF16A34A),
+    ],
+    people: const [],
+  );
 
   Future<void> init() async {
     _people = await Hive.openBox(_peopleBox);
     _occurrences = await Hive.openBox(_occBox);
     _debts = await Hive.openBox(_debtBox);
     _settings = await Hive.openBox(_settingsBox);
-    _seedPeople();
     final raw = _settings.get('app');
     if (raw is Map) {
       settings = AppSettings.fromMap(Map<String, dynamic>.from(raw));
     }
+    _loadHouse();
   }
 
-  void _seedPeople() {
-    if (_people.isNotEmpty) return;
-    const seed = [
-      Person(id: 'nimesh', name: 'Nimesh', roomId: 1),
-      Person(id: 'mansi', name: 'Mansi', roomId: 1),
-      Person(id: 'roshan', name: 'Roshan', roomId: 2),
-      Person(id: 'sudhir', name: 'Sudhir', roomId: 2),
-      Person(id: 'kartik', name: 'Kartik', roomId: 3),
-      Person(id: 'nayan', name: 'Nayan', roomId: 3),
-    ];
-    for (final p in seed) {
-      _people.put(p.id, p.toMap());
+  void _loadHouse() {
+    final raw = _settings.get('house');
+    if (raw is Map) {
+      house = HouseProfile.fromMap(Map<String, dynamic>.from(raw));
+      return;
+    }
+    if (_people.isNotEmpty) {
+      final people = _people.values
+          .whereType<Map>()
+          .map((m) => Person.fromMap(Map<String, dynamic>.from(m)))
+          .toList();
+      house = HouseProfile.twoA(id: 'local-2a').copyWith(people: people);
     }
   }
 
+  bool get hasLegacyRoster => !settings.hasHouse && people.isNotEmpty;
+
   List<Person> get people {
-    final list = _people.values
-        .whereType<Map>()
-        .map((m) => Person.fromMap(Map<String, dynamic>.from(m)))
-        .toList();
+    final list = [...house.people];
     const order = ['nimesh', 'mansi', 'roshan', 'sudhir', 'kartik', 'nayan'];
     list.sort((a, b) {
       final ai = order.indexOf(a.id);
       final bi = order.indexOf(b.id);
-      return (ai < 0 ? 99 : ai).compareTo(bi < 0 ? 99 : bi);
+      if (ai >= 0 || bi >= 0) {
+        return (ai < 0 ? 99 : ai).compareTo(bi < 0 ? 99 : bi);
+      }
+      return a.name.compareTo(b.name);
     });
     return list;
   }
@@ -73,9 +85,15 @@ class HouseStore extends ChangeNotifier {
 
   String namesForRoom(int roomId) {
     final names = peopleInRoom(roomId).map((p) => p.name).toList();
-    if (names.isEmpty) return 'Room $roomId';
+    if (names.isEmpty) return house.roomLabel(roomId);
     return names.join(' & ');
   }
+
+  String jobTitle(JobType type) => house.rule(type).title;
+
+  String jobBlurb(JobType type) => house.rule(type).blurb;
+
+  List<String> jobChecklist(JobType type) => house.rule(type).checklist;
 
   Person? get me => personById(settings.myPersonId);
 
@@ -83,7 +101,9 @@ class HouseStore extends ChangeNotifier {
   String? cloudError;
   var _applyingRemote = false;
   Future<void> Function(Occurrence occ)? cloudPush;
+  Future<void> Function(HouseProfile house)? cloudPushHouse;
   Future<bool> Function()? cloudReconnect;
+  Future<void> Function()? cloudStop;
 
   void setCloudConnected(bool value, {String? error}) {
     cloudConnected = value;
@@ -97,8 +117,78 @@ class HouseStore extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> saveHouse(HouseProfile next, {bool push = true}) async {
+    house = next;
+    await _settings.put('house', next.toMap());
+    final keep = next.people.map((p) => p.id).toSet();
+    for (final key in _people.keys.toList()) {
+      if (!keep.contains(key)) await _people.delete(key);
+    }
+    for (final p in next.people) {
+      await _people.put(p.id, p.toMap());
+    }
+    notifyListeners();
+    if (push && !_applyingRemote) {
+      unawaited(cloudPushHouse?.call(next));
+    }
+  }
+
+  Future<void> adoptHouse(HouseProfile next) async {
+    await saveHouse(next, push: false);
+    await saveSettings(
+      settings.copyWith(houseId: next.id, inviteCode: next.inviteCode),
+    );
+  }
+
+  Future<void> leaveHouse() async {
+    await cloudStop?.call();
+    await _occurrences.clear();
+    await _debts.clear();
+    await _people.clear();
+    await _settings.delete('house');
+    house = HouseProfile.blank(
+      id: 'local',
+      name: 'House',
+      inviteCode: '',
+      rooms: const [
+        HouseRoom(id: 1, name: 'Room 1', colorValue: 0xFF2563EB),
+        HouseRoom(id: 2, name: 'Room 2', colorValue: 0xFF16A34A),
+      ],
+      people: const [],
+    );
+    await saveSettings(settings.copyWith(clearHouse: true, clearPerson: true));
+    notifyListeners();
+  }
+
   Future<void> savePerson(Person person) async {
-    await _people.put(person.id, person.toMap());
+    final next = [...house.people];
+    final i = next.indexWhere((p) => p.id == person.id);
+    if (i >= 0) {
+      next[i] = person;
+    } else {
+      next.add(person);
+    }
+    await saveHouse(house.copyWith(people: next));
+  }
+
+  Future<void> removePerson(String id) async {
+    await saveHouse(
+      house.copyWith(people: house.people.where((p) => p.id != id).toList()),
+    );
+    if (settings.myPersonId == id) {
+      await saveSettings(settings.copyWith(clearPerson: true));
+    }
+  }
+
+  void applyRemoteHouse(HouseProfile next) {
+    if (next.id != settings.houseId) return;
+    _applyingRemote = true;
+    house = next;
+    _settings.put('house', next.toMap());
+    for (final p in next.people) {
+      _people.put(p.id, p.toMap());
+    }
+    _applyingRemote = false;
     notifyListeners();
   }
 
@@ -127,7 +217,7 @@ class HouseStore extends ChangeNotifier {
   }
 
   List<Occurrence> occurrencesOn(DateTime date) {
-    final planned = jobsOn(date);
+    final planned = jobsOn(date, house);
     final list = planned.map((j) => hydrate(j, date)).toList();
     list.addAll(makeupsOn(date));
     return list;
@@ -154,6 +244,7 @@ class HouseStore extends ChangeNotifier {
         missedDate: debt.missedDate,
         jobType: debt.jobType,
         owingRoom: debt.roomId,
+        house: house,
       );
       if (due == null || dateOnly(due) != d) continue;
       final id = occurrenceId(d, debt.jobType, makeup: true, room: debt.roomId);
@@ -192,6 +283,7 @@ class HouseStore extends ChangeNotifier {
   Occurrence? storedOccurrence(String id) => _stored(id);
 
   void applyRemote(Occurrence occ) {
+    if (!settings.hasHouse) return;
     final before = _stored(occ.id);
     if (before != null &&
         before.completed == occ.completed &&
@@ -231,7 +323,7 @@ class HouseStore extends ChangeNotifier {
     final start = addDays(today, -90);
     var changed = false;
     for (final day in daysInRange(start, addDays(today, -1))) {
-      for (final job in jobsOn(day)) {
+      for (final job in jobsOn(day, house)) {
         final occ = hydrate(job, day);
         if (occ.completed || occ.notifiedOnTime) continue;
         final id =
@@ -293,8 +385,9 @@ class HouseStore extends ChangeNotifier {
   }
 
   String notifyMessage(Occurrence occ) {
-    final room = 'Room ${occ.assignedRoom} (${namesForRoom(occ.assignedRoom)})';
+    final room =
+        '${house.roomLabel(occ.assignedRoom)} (${namesForRoom(occ.assignedRoom)})';
     final day = '${occ.date.day}/${occ.date.month}';
-    return '$room can’t do ${occ.jobType.title.toLowerCase()} on $day — covering / need swap.';
+    return '$room can’t do ${jobTitle(occ.jobType).toLowerCase()} on $day — covering / need swap.';
   }
 }

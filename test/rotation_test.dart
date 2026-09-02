@@ -52,4 +52,44 @@ void main() {
       DateTime(2026, 8, 23),
     );
   });
+
+  test('a new house pins garbage to weekday rooms', () {
+    final house = HouseProfile.blank(
+      id: 'h2',
+      name: 'Test',
+      inviteCode: 'ZZZZ2222',
+      rooms: const [
+        HouseRoom(id: 1, name: 'A', colorValue: 0xFF2563EB),
+        HouseRoom(id: 2, name: 'B', colorValue: 0xFF16A34A),
+      ],
+      people: const [Person(id: 'a', name: 'Ada', roomId: 1)],
+      start: DateTime(2026, 9, 1),
+    );
+    expect(garbageRoom(DateTime(2026, 9, 1), house), 1); // Tue
+    expect(garbageRoom(DateTime(2026, 9, 3), house), 2); // Thu
+    expect(house.rule(JobType.garbage).sundayFollowsUpstairs, isTrue);
+  });
+
+  test('a new house rotates from its own epoch and rooms', () {
+    final start = DateTime(2026, 9, 2); // Wednesday
+    final house = HouseProfile.blank(
+      id: 'h1',
+      name: 'Test',
+      inviteCode: 'ABCD2345',
+      rooms: const [
+        HouseRoom(id: 1, name: 'A', colorValue: 0xFF2563EB),
+        HouseRoom(id: 2, name: 'B', colorValue: 0xFF16A34A),
+      ],
+      people: const [Person(id: 'a', name: 'Ada', roomId: 1)],
+      start: start,
+    );
+    expect(downstairsRoom(start, house), 1);
+    expect(downstairsRoom(DateTime(2026, 9, 6), house), 2); // Sunday
+    expect(downstairsRoom(DateTime(2026, 9, 9), house), 1);
+    expect(upstairsRoom(DateTime(2026, 9, 6), house), 2);
+    expect(jobsOn(DateTime(2026, 9, 6), house).map((j) => j.jobType).toList(), [
+      JobType.downstairs,
+      JobType.upstairs,
+    ]);
+  });
 }

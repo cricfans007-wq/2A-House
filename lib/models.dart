@@ -209,29 +209,433 @@ class PenaltyDebt {
 }
 
 class AppSettings {
-  const AppSettings({this.myPersonId, this.notifyHour = 20});
+  const AppSettings({
+    this.myPersonId,
+    this.notifyHour = 20,
+    this.houseId,
+    this.inviteCode,
+  });
 
   final String? myPersonId;
   final int notifyHour;
+  final String? houseId;
+  final String? inviteCode;
+
+  bool get hasHouse => houseId != null && houseId!.isNotEmpty;
 
   AppSettings copyWith({
     String? myPersonId,
     int? notifyHour,
+    String? houseId,
+    String? inviteCode,
     bool clearPerson = false,
+    bool clearHouse = false,
   }) => AppSettings(
     myPersonId: clearPerson ? null : (myPersonId ?? this.myPersonId),
     notifyHour: notifyHour ?? this.notifyHour,
+    houseId: clearHouse ? null : (houseId ?? this.houseId),
+    inviteCode: clearHouse ? null : (inviteCode ?? this.inviteCode),
   );
 
   Map<String, dynamic> toMap() => {
     'myPersonId': myPersonId,
     'notifyHour': notifyHour,
+    'houseId': houseId,
+    'inviteCode': inviteCode,
   };
 
   factory AppSettings.fromMap(Map map) => AppSettings(
     myPersonId: map['myPersonId'] as String?,
     notifyHour: (map['notifyHour'] as int?) ?? 20,
+    houseId: map['houseId'] as String?,
+    inviteCode: map['inviteCode'] as String?,
   );
+}
+
+const roomPalette = [
+  0xFF2563EB,
+  0xFF16A34A,
+  0xFFEA580C,
+  0xFF7C3AED,
+  0xFFDB2777,
+  0xFF0F766E,
+  0xFFCA8A04,
+  0xFF0E7490,
+];
+
+class HouseRoom {
+  const HouseRoom({
+    required this.id,
+    required this.name,
+    required this.colorValue,
+  });
+
+  final int id;
+  final String name;
+  final int colorValue;
+
+  HouseRoom copyWith({String? name, int? colorValue}) => HouseRoom(
+    id: id,
+    name: name ?? this.name,
+    colorValue: colorValue ?? this.colorValue,
+  );
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'colorValue': colorValue,
+  };
+
+  factory HouseRoom.fromMap(Map map) => HouseRoom(
+    id: (map['id'] as num).toInt(),
+    name: (map['name'] as String?) ?? 'Room ${(map['id'] as num).toInt()}',
+    colorValue:
+        (map['colorValue'] as num?)?.toInt() ??
+        roomPalette[((map['id'] as num).toInt() - 1) % roomPalette.length],
+  );
+}
+
+class JobRule {
+  const JobRule({
+    required this.type,
+    required this.title,
+    required this.blurb,
+    required this.checklist,
+    required this.weekdays,
+    required this.cycle,
+    this.epoch,
+    this.enabled = true,
+    this.sundayFollowsUpstairs = false,
+    this.weekdayRooms = const {},
+  });
+
+  final JobType type;
+  final String title;
+  final String blurb;
+  final List<String> checklist;
+  final List<int> weekdays;
+  final List<int> cycle;
+  final DateTime? epoch;
+  final bool enabled;
+  final bool sundayFollowsUpstairs;
+  final Map<int, int> weekdayRooms;
+
+  JobRule copyWith({
+    String? title,
+    String? blurb,
+    List<String>? checklist,
+    List<int>? weekdays,
+    List<int>? cycle,
+    DateTime? epoch,
+    bool? enabled,
+    bool? sundayFollowsUpstairs,
+    Map<int, int>? weekdayRooms,
+    bool clearEpoch = false,
+  }) => JobRule(
+    type: type,
+    title: title ?? this.title,
+    blurb: blurb ?? this.blurb,
+    checklist: checklist ?? this.checklist,
+    weekdays: weekdays ?? this.weekdays,
+    cycle: cycle ?? this.cycle,
+    epoch: clearEpoch ? null : (epoch ?? this.epoch),
+    enabled: enabled ?? this.enabled,
+    sundayFollowsUpstairs: sundayFollowsUpstairs ?? this.sundayFollowsUpstairs,
+    weekdayRooms: weekdayRooms ?? this.weekdayRooms,
+  );
+
+  Map<String, dynamic> toMap() => {
+    'type': type.id,
+    'title': title,
+    'blurb': blurb,
+    'checklist': checklist,
+    'weekdays': weekdays,
+    'cycle': cycle,
+    'epoch': epoch?.toIso8601String(),
+    'enabled': enabled,
+    'sundayFollowsUpstairs': sundayFollowsUpstairs,
+    'weekdayRooms': {for (final e in weekdayRooms.entries) '${e.key}': e.value},
+  };
+
+  factory JobRule.fromMap(Map map, JobType fallback) {
+    final type = JobTypeX.fromId((map['type'] as String?) ?? fallback.id);
+    final rooms = <int, int>{};
+    final rawRooms = map['weekdayRooms'];
+    if (rawRooms is Map) {
+      for (final e in rawRooms.entries) {
+        rooms[int.parse(e.key.toString())] = (e.value as num).toInt();
+      }
+    }
+    return JobRule(
+      type: type,
+      title: (map['title'] as String?) ?? fallback.title,
+      blurb: (map['blurb'] as String?) ?? fallback.blurb,
+      checklist: ((map['checklist'] as List?) ?? fallback.checklist)
+          .map((e) => e.toString())
+          .toList(),
+      weekdays: ((map['weekdays'] as List?) ?? const <int>[])
+          .map((e) => (e as num).toInt())
+          .toList(),
+      cycle: ((map['cycle'] as List?) ?? const <int>[])
+          .map((e) => (e as num).toInt())
+          .toList(),
+      epoch: _parseTime(map['epoch']),
+      enabled: (map['enabled'] as bool?) ?? true,
+      sundayFollowsUpstairs: (map['sundayFollowsUpstairs'] as bool?) ?? false,
+      weekdayRooms: rooms,
+    );
+  }
+}
+
+class HouseProfile {
+  const HouseProfile({
+    required this.id,
+    required this.name,
+    required this.inviteCode,
+    required this.rooms,
+    required this.people,
+    required this.rules,
+    this.memberUids = const [],
+  });
+
+  final String id;
+  final String name;
+  final String inviteCode;
+  final List<HouseRoom> rooms;
+  final List<Person> people;
+  final Map<JobType, JobRule> rules;
+  final List<String> memberUids;
+
+  JobRule rule(JobType type) => rules[type] ?? JobRule.fromMap(const {}, type);
+
+  HouseRoom? roomById(int id) {
+    for (final r in rooms) {
+      if (r.id == id) return r;
+    }
+    return null;
+  }
+
+  String roomLabel(int id) => roomById(id)?.name ?? 'Room $id';
+
+  String rulesSummary() {
+    final down = rule(JobType.downstairs);
+    final up = rule(JobType.upstairs);
+    return '${down.title} ${down.cycle.map((r) => 'R$r').join('→')} · ${up.title} ${up.cycle.map((r) => 'R$r').join('→')}';
+  }
+
+  HouseProfile copyWith({
+    String? name,
+    String? inviteCode,
+    List<HouseRoom>? rooms,
+    List<Person>? people,
+    Map<JobType, JobRule>? rules,
+    List<String>? memberUids,
+  }) => HouseProfile(
+    id: id,
+    name: name ?? this.name,
+    inviteCode: inviteCode ?? this.inviteCode,
+    rooms: rooms ?? this.rooms,
+    people: people ?? this.people,
+    rules: rules ?? this.rules,
+    memberUids: memberUids ?? this.memberUids,
+  );
+
+  Map<String, dynamic> toMap() => {
+    'id': id,
+    'name': name,
+    'inviteCode': inviteCode,
+    'rooms': rooms.map((r) => r.toMap()).toList(),
+    'people': people.map((p) => p.toMap()).toList(),
+    'rules': {for (final e in rules.entries) e.key.id: e.value.toMap()},
+    'memberUids': memberUids,
+  };
+
+  factory HouseProfile.fromMap(Map map) {
+    final rulesRaw = map['rules'];
+    final rules = <JobType, JobRule>{};
+    if (rulesRaw is Map) {
+      for (final type in JobType.values) {
+        final raw = rulesRaw[type.id];
+        if (raw is Map) {
+          rules[type] = JobRule.fromMap(Map<String, dynamic>.from(raw), type);
+        }
+      }
+    }
+    for (final type in JobType.values) {
+      rules.putIfAbsent(type, () => defaultRule(type, const [1, 2]));
+    }
+    return HouseProfile(
+      id: (map['id'] as String?) ?? '',
+      name: (map['name'] as String?) ?? 'House',
+      inviteCode: (map['inviteCode'] as String?) ?? '',
+      rooms: ((map['rooms'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((m) => HouseRoom.fromMap(Map<String, dynamic>.from(m)))
+          .toList(),
+      people: ((map['people'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((m) => Person.fromMap(Map<String, dynamic>.from(m)))
+          .toList(),
+      rules: rules,
+      memberUids: ((map['memberUids'] as List?) ?? const [])
+          .map((e) => e.toString())
+          .toList(),
+    );
+  }
+
+  static Map<int, int> pairedWeekdayRooms(List<int> roomIds) {
+    final ids = roomIds.isEmpty ? const [1] : roomIds;
+    final chunk = (6 / ids.length).ceil().clamp(1, 6);
+    return {
+      for (var w = DateTime.monday; w <= DateTime.saturday; w++)
+        w: ids[((w - 1) ~/ chunk) % ids.length],
+    };
+  }
+
+  static JobRule defaultRule(
+    JobType type,
+    List<int> roomIds, {
+    DateTime? start,
+  }) {
+    final epoch = DateTime(
+      (start ?? DateTime.now()).year,
+      (start ?? DateTime.now()).month,
+      (start ?? DateTime.now()).day,
+    );
+    final rooms = roomIds.isEmpty ? [1] : roomIds;
+    return switch (type) {
+      JobType.downstairs => JobRule(
+        type: type,
+        title: type.title,
+        blurb: type.blurb,
+        checklist: type.checklist,
+        weekdays: const [DateTime.wednesday, DateTime.sunday],
+        cycle: rooms,
+        epoch: epoch,
+      ),
+      JobType.upstairs => JobRule(
+        type: type,
+        title: type.title,
+        blurb: type.blurb,
+        checklist: type.checklist,
+        weekdays: const [DateTime.sunday],
+        cycle: rooms.reversed.toList(),
+        epoch: epoch,
+      ),
+      JobType.garbage => JobRule(
+        type: type,
+        title: type.title,
+        blurb: type.blurb,
+        checklist: type.checklist,
+        weekdays: const [
+          DateTime.monday,
+          DateTime.tuesday,
+          DateTime.wednesday,
+          DateTime.thursday,
+          DateTime.friday,
+          DateTime.saturday,
+          DateTime.sunday,
+        ],
+        cycle: rooms,
+        epoch: epoch,
+        sundayFollowsUpstairs: true,
+        weekdayRooms: pairedWeekdayRooms(rooms),
+      ),
+    };
+  }
+
+  static HouseProfile twoA({String id = 'local-2a', String inviteCode = ''}) {
+    const people = [
+      Person(id: 'nimesh', name: 'Nimesh', roomId: 1),
+      Person(id: 'mansi', name: 'Mansi', roomId: 1),
+      Person(id: 'roshan', name: 'Roshan', roomId: 2),
+      Person(id: 'sudhir', name: 'Sudhir', roomId: 2),
+      Person(id: 'kartik', name: 'Kartik', roomId: 3),
+      Person(id: 'nayan', name: 'Nayan', roomId: 3),
+    ];
+    const rooms = [
+      HouseRoom(id: 1, name: 'Room 1', colorValue: 0xFF2563EB),
+      HouseRoom(id: 2, name: 'Room 2', colorValue: 0xFF16A34A),
+      HouseRoom(id: 3, name: 'Room 3', colorValue: 0xFFEA580C),
+    ];
+    return HouseProfile(
+      id: id,
+      name: '2A House',
+      inviteCode: inviteCode,
+      rooms: rooms,
+      people: people,
+      rules: {
+        JobType.downstairs: JobRule(
+          type: JobType.downstairs,
+          title: JobType.downstairs.title,
+          blurb: JobType.downstairs.blurb,
+          checklist: JobType.downstairs.checklist,
+          weekdays: const [DateTime.wednesday, DateTime.sunday],
+          cycle: const [1, 2, 3],
+          epoch: DateTime(2026, 8, 19),
+        ),
+        JobType.upstairs: JobRule(
+          type: JobType.upstairs,
+          title: JobType.upstairs.title,
+          blurb: JobType.upstairs.blurb,
+          checklist: JobType.upstairs.checklist,
+          weekdays: const [DateTime.sunday],
+          cycle: const [3, 2, 1],
+          epoch: DateTime(2026, 8, 23),
+        ),
+        JobType.garbage: JobRule(
+          type: JobType.garbage,
+          title: JobType.garbage.title,
+          blurb: JobType.garbage.blurb,
+          checklist: JobType.garbage.checklist,
+          weekdays: const [
+            DateTime.monday,
+            DateTime.tuesday,
+            DateTime.wednesday,
+            DateTime.thursday,
+            DateTime.friday,
+            DateTime.saturday,
+            DateTime.sunday,
+          ],
+          cycle: const [1, 2, 3],
+          epoch: DateTime(2026, 8, 17),
+          sundayFollowsUpstairs: true,
+          weekdayRooms: const {
+            DateTime.monday: 3,
+            DateTime.tuesday: 3,
+            DateTime.wednesday: 1,
+            DateTime.thursday: 1,
+            DateTime.friday: 2,
+            DateTime.saturday: 2,
+          },
+        ),
+      },
+    );
+  }
+
+  static HouseProfile blank({
+    required String id,
+    required String name,
+    required String inviteCode,
+    required List<HouseRoom> rooms,
+    required List<Person> people,
+    List<String> memberUids = const [],
+    DateTime? start,
+  }) {
+    final ids = rooms.map((r) => r.id).toList();
+    return HouseProfile(
+      id: id,
+      name: name,
+      inviteCode: inviteCode,
+      rooms: rooms,
+      people: people,
+      memberUids: memberUids,
+      rules: {
+        for (final type in JobType.values)
+          type: defaultRule(type, ids, start: start),
+      },
+    );
+  }
 }
 
 DateTime? _parseTime(dynamic value) {
